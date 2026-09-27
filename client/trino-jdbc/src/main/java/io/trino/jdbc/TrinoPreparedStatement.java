@@ -20,7 +20,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import io.trino.client.ClientTypeSignature;
 import io.trino.client.ClientTypeSignatureParameter;
-import org.joda.time.DateTimeZone;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -83,6 +82,7 @@ import static java.lang.Long.parseLong;
 import static java.lang.String.format;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
+import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.util.Objects.requireNonNull;
 
 public class TrinoPreparedStatement
@@ -94,6 +94,13 @@ public class TrinoPreparedStatement
                     .append(ISO_LOCAL_DATE)
                     .appendLiteral(' ')
                     .append(ISO_LOCAL_TIME)
+                    .toFormatter();
+
+    private static final DateTimeFormatter SQL_TIMESTAMP_FORMATTER =
+            new DateTimeFormatterBuilder()
+                    .append(ISO_LOCAL_DATE)
+                    .appendPattern(" HH:mm:ss")
+                    .appendFraction(NANO_OF_SECOND, 3, 9, true)
                     .toFormatter();
 
     private static final DateTimeFormatter OFFSET_DATE_TIME_FORMATTER =
@@ -412,6 +419,9 @@ public class TrinoPreparedStatement
     private String toTimestampLiteral(Object value)
             throws SQLException
     {
+        if (value instanceof Timestamp) {
+            return SQL_TIMESTAMP_FORMATTER.format(((Timestamp) value).toLocalDateTime());
+        }
         if (value instanceof java.util.Date) {
             return TIMESTAMP_FORMATTER.print(((java.util.Date) value).getTime());
         }
@@ -457,7 +467,7 @@ public class TrinoPreparedStatement
             setTimestamp(parameterIndex, x);
         }
         else {
-            String formattedDateTime = TIMESTAMP_FORMATTER.withZone(DateTimeZone.forTimeZone(cal.getTimeZone())).print(x.getTime());
+            String formattedDateTime = SQL_TIMESTAMP_FORMATTER.format(LocalDateTime.ofInstant(x.toInstant(), cal.getTimeZone().toZoneId()));
             setParameter(parameterIndex, formatLiteral("TIMESTAMP", formattedDateTime));
         }
     }

@@ -1431,6 +1431,28 @@ public class TestJdbcPreparedStatement
         assertBind((ps, i) -> ps.setObject(i, timestampWithMillisecond, Types.TIMESTAMP), explicitPrepare)
                 .resultsIn("timestamp(3)", "TIMESTAMP '2001-05-06 12:34:56.123'")
                 .roundTripsAs(Types.TIMESTAMP, timestampWithMillisecond);
+
+        Timestamp timestampWithMicrosecond = Timestamp.valueOf(dateTime.withNano(123_456_000));
+        assertBind((ps, i) -> ps.setTimestamp(i, timestampWithMicrosecond), explicitPrepare)
+                .resultsIn("timestamp(6)", "TIMESTAMP '2001-05-06 12:34:56.123456'")
+                .roundTripsAs(Types.TIMESTAMP, timestampWithMicrosecond);
+
+        Timestamp timestampWithNanosecond = Timestamp.valueOf(dateTime.withNano(123_456_789));
+        assertBind((ps, i) -> ps.setTimestamp(i, timestampWithNanosecond), explicitPrepare)
+                .resultsIn("timestamp(9)", "TIMESTAMP '2001-05-06 12:34:56.123456789'")
+                .roundTripsAs(Types.TIMESTAMP, timestampWithNanosecond);
+
+        assertBind((ps, i) -> ps.setObject(i, timestampWithNanosecond), explicitPrepare)
+                .resultsIn("timestamp(9)", "TIMESTAMP '2001-05-06 12:34:56.123456789'")
+                .roundTripsAs(Types.TIMESTAMP, timestampWithNanosecond);
+
+        assertBind((ps, i) -> ps.setObject(i, timestampWithNanosecond, Types.TIMESTAMP), explicitPrepare)
+                .resultsIn("timestamp(9)", "TIMESTAMP '2001-05-06 12:34:56.123456789'")
+                .roundTripsAs(Types.TIMESTAMP, timestampWithNanosecond);
+
+        assertBind((ps, i) -> ps.setTimestamp(i, timestampWithNanosecond, Calendar.getInstance(TimeZone.getTimeZone(ZoneId.of("Europe/Warsaw")))), explicitPrepare)
+                .resultsIn("timestamp(9)", "TIMESTAMP '2001-05-06 20:34:56.123456789'")
+                .roundTripsAs(Types.TIMESTAMP, Timestamp.valueOf(sameInstantInWarsawZone.toLocalDateTime().withNano(123_456_789)));
     }
 
     @Test
