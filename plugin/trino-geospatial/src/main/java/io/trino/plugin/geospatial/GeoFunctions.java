@@ -2264,7 +2264,10 @@ public final class GeoFunctions
         return new WKTWriter(3).write(geometry)
                 .replace(" Z(", " Z (")
                 .replace(" M(", " M (")
-                .replace(" ZM(", " ZM (");
+                .replace(" ZM(", " ZM (")
+                .replace(" ZEMPTY", " Z EMPTY")
+                .replace(" MEMPTY", " M EMPTY")
+                .replace(" ZMEMPTY", " ZM EMPTY");
     }
 
     private static Geometry geometryFromEwkt(Slice input)

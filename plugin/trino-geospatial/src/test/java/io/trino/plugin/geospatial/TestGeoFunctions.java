@@ -2631,6 +2631,10 @@ public class TestGeoFunctions
                 .hasType(VARCHAR)
                 .isEqualTo("POINT Z (1 2 3)");
 
+        assertThat(assertions.function("ST_AsText", "ST_GeometryFromText('GEOMETRYCOLLECTION Z (POINT Z EMPTY, POINT Z (1 2 3))')"))
+                .hasType(VARCHAR)
+                .isEqualTo("GEOMETRYCOLLECTION Z (POINT Z EMPTY, POINT Z (1 2 3))");
+
         assertTrinoExceptionThrownBy(assertions.function("ST_GeometryFromText", "'SRID=4326;POINT (1 2)'")::evaluate)
                 .hasMessage("Invalid WKT: SRID=4326;POINT (1 2)");
     }
