@@ -3180,6 +3180,16 @@ public class TestGeoFunctions
                 .hasType(VARCHAR)
                 .isEqualTo("POINT Z (1 2 3)");
 
+        assertThat(assertions.expression("ST_AsEWKT(ST_Force3D(geometry))")
+                .binding("geometry", "ST_SetSRID(ST_Point(1, 2), 4326)"))
+                .hasType(VARCHAR)
+                .isEqualTo("SRID=4326;POINT Z (1 2 0)");
+
+        assertThat(assertions.expression("ST_AsEWKT(ST_Force3D(geometry, 7.0))")
+                .binding("geometry", "ST_GeometryFromText('MULTIPOLYGON (((0 0, 1 0, 1 1, 0 0)))')"))
+                .hasType(VARCHAR)
+                .isEqualTo("MULTIPOLYGON Z (((0 0 7, 1 0 7, 1 1 7, 0 0 7)))");
+
         assertTrinoExceptionThrownBy(assertions.function("ST_Force3D", "ST_Point(1, 2)", "nan()")::evaluate)
                 .hasMessage("z is NaN");
 

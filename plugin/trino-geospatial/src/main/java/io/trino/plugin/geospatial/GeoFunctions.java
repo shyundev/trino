@@ -54,6 +54,7 @@ import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.locationtech.jts.geom.TopologyException;
+import org.locationtech.jts.geom.util.GeometryEditor;
 import org.locationtech.jts.geom.util.GeometryFixer;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.io.WKTReader;
@@ -76,6 +77,7 @@ import org.opengis.referencing.operation.TransformException;
 import org.opengis.util.FactoryException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -282,31 +284,38 @@ public final class GeoFunctions
     {
         validateFiniteZ(z);
 
-        Geometry result = geometry.copy();
-        result.apply(new CoordinateSequenceFilter()
-        {
-            @Override
-            public void filter(CoordinateSequence sequence, int index)
-            {
-                if (isNaN(sequence.getZ(index))) {
-                    sequence.setOrdinate(index, CoordinateSequence.Z, z);
-                }
-            }
-
-            @Override
-            public boolean isDone()
-            {
-                return false;
-            }
-
-            @Override
-            public boolean isGeometryChanged()
-            {
-                return true;
-            }
-        });
+        Geometry result = force3D(geometry, z);
         result.setSRID(geometry.getSRID());
         return result;
+    }
+
+    private static Geometry force3D(Geometry geometry, double z)
+    {
+        if (geometry instanceof GeometryCollection collection) {
+            Geometry[] parts = new Geometry[collection.getNumGeometries()];
+            for (int i = 0; i < parts.length; i++) {
+                parts[i] = force3D(collection.getGeometryN(i), z);
+            }
+            return switch (collection) {
+                case MultiPoint _ -> GEOMETRY_FACTORY.createMultiPoint(Arrays.copyOf(parts, parts.length, Point[].class));
+                case MultiLineString _ -> GEOMETRY_FACTORY.createMultiLineString(Arrays.copyOf(parts, parts.length, LineString[].class));
+                case MultiPolygon _ -> GEOMETRY_FACTORY.createMultiPolygon(Arrays.copyOf(parts, parts.length, Polygon[].class));
+                default -> GEOMETRY_FACTORY.createGeometryCollection(parts);
+            };
+        }
+        return new GeometryEditor(GEOMETRY_FACTORY).edit(geometry, new GeometryEditor.CoordinateOperation()
+        {
+            @Override
+            public Coordinate[] edit(Coordinate[] coordinates, Geometry geometry)
+            {
+                Coordinate[] result = new Coordinate[coordinates.length];
+                for (int i = 0; i < coordinates.length; i++) {
+                    Coordinate coordinate = coordinates[i];
+                    result[i] = new Coordinate(coordinate.getX(), coordinate.getY(), isNaN(coordinate.getZ()) ? z : coordinate.getZ());
+                }
+                return result;
+            }
+        });
     }
 
     @Description("Returns a Geometry collection from an array of geometries")
