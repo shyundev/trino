@@ -148,6 +148,11 @@ public class InCodeGenerator
         ImmutableList.Builder<BytecodeNode> defaultBucket = ImmutableList.builder();
         ImmutableSet.Builder<Object> constantValuesBuilder = ImmutableSet.builder();
 
+        // value and caseWasNull stay live while the test values run, so take them before the test values are generated and release their temps
+        Scope scope = generatorContext.getScope();
+        Variable value = scope.getOrCreateTempVariable(javaType);
+        Variable caseWasNull = scope.getOrCreateTempVariable(boolean.class); // set to true the first time a null test value is encountered
+
         for (Expression testValue : testExpressions) {
             BytecodeNode testBytecode = generatorContext.generate(testValue);
 
@@ -181,9 +186,6 @@ public class InCodeGenerator
 
         LabelNode defaultLabel = new LabelNode("default");
 
-        Scope scope = generatorContext.getScope();
-        Variable value = scope.getOrCreateTempVariable(javaType);
-
         BytecodeNode switchBlock;
         Variable expression = scope.getOrCreateTempVariable(int.class);
         SwitchBuilder switchBuilder = new SwitchBuilder().expression(expression);
@@ -208,7 +210,7 @@ public class InCodeGenerator
                     Collection<BytecodeNode> testValues = bucket.getValue();
                     BytecodeBlock caseBlock = buildInCase(
                             generatorContext,
-                            scope,
+                            caseWasNull,
                             resolvedEqualsFunction,
                             match,
                             defaultLabel,
@@ -250,7 +252,7 @@ public class InCodeGenerator
 
         BytecodeBlock defaultCaseBlock = buildInCase(
                 generatorContext,
-                scope,
+                caseWasNull,
                 resolvedEqualsFunction,
                 match,
                 noMatch,
@@ -287,6 +289,7 @@ public class InCodeGenerator
         block.visitLabel(end);
 
         scope.releaseTempVariableForReuse(expression);
+        scope.releaseTempVariableForReuse(caseWasNull);
         scope.releaseTempVariableForReuse(value);
 
         return block;
@@ -299,7 +302,7 @@ public class InCodeGenerator
 
     private static BytecodeBlock buildInCase(
             BytecodeGeneratorContext generatorContext,
-            Scope scope,
+            Variable caseWasNull,
             ResolvedFunction equals,
             LabelNode matchLabel,
             LabelNode noMatchLabel,
@@ -308,11 +311,6 @@ public class InCodeGenerator
             boolean checkForNulls,
             ResolvedFunction isIndeterminateFunction)
     {
-        Variable caseWasNull = null; // caseWasNull is set to true the first time a null in `testValues` is encountered
-        if (checkForNulls) {
-            caseWasNull = scope.getOrCreateTempVariable(boolean.class);
-        }
-
         BytecodeBlock caseBlock = new BytecodeBlock();
 
         if (checkForNulls) {
@@ -371,10 +369,6 @@ public class InCodeGenerator
             elseLabel = testLabel;
         }
         caseBlock.append(elseNode);
-
-        if (checkForNulls) {
-            scope.releaseTempVariableForReuse(caseWasNull);
-        }
         return caseBlock;
     }
 

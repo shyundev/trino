@@ -2101,6 +2101,19 @@ public class TestExpressionCompiler
         assertThat(assertions.expression("a IN (100, 101, if(rand()<0, 1), if(rand()>=0, 1))")
                 .binding("a", "2"))
                 .isNull(BOOLEAN);
+
+        assertThat(assertions.expression("a IN (b, CASE c WHEN 1 THEN 10 END)")
+                .binding("a", "5")
+                .binding("b", "5")
+                .binding("c", "1"))
+                .hasType(BOOLEAN)
+                .isEqualTo(true);
+
+        assertThat(assertions.expression("a IN (CASE c WHEN 1 THEN 10 END, b)")
+                .binding("a", "5")
+                .binding("b", "CAST(null AS integer)")
+                .binding("c", "1"))
+                .isNull(BOOLEAN);
     }
 
     @Test
@@ -2269,6 +2282,13 @@ public class TestExpressionCompiler
         assertThat(assertions.expression("a IN (ARRAY[1, null], ARRAY[2, null], ARRAY[1, null])")
                 .binding("a", "ARRAY[1, null]"))
                 .isNull(BOOLEAN);
+
+        assertThat(assertions.expression("a IN (b, c)")
+                .binding("a", "ARRAY[1]")
+                .binding("b", "ARRAY[1]")
+                .binding("c", "ARRAY[2]"))
+                .hasType(BOOLEAN)
+                .isEqualTo(true);
 
         assertThat(assertions.expression("a IN (ROW(1))")
                 .binding("a", "ROW(1)"))
