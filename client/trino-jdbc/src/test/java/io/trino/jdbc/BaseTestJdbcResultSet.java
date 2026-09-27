@@ -42,9 +42,11 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.UUID;
 
 import static com.google.common.base.Verify.verify;
@@ -984,6 +986,14 @@ public abstract class BaseTestJdbcResultSet
                         .hasMessage("Expected column to be a timestamp type but is date");
 
                 assertThat(rs.getString(column)).isEqualTo(localDate.toString());
+            });
+
+            // Joda-Time and the JDK have different time zone data for Europe/Amsterdam in 1920
+            checkRepresentation(connectedStatement.getStatement(), "DATE '1920-06-01'", Types.DATE, (rs, column) -> {
+                ZoneId zone = ZoneId.of("Europe/Amsterdam");
+                Date sqlDate = new Date(LocalDate.of(1920, 6, 1).atStartOfDay(zone).toInstant().toEpochMilli());
+
+                assertThat(rs.getDate(column, Calendar.getInstance(TimeZone.getTimeZone(zone)))).isEqualTo(sqlDate);
             });
         }
     }
