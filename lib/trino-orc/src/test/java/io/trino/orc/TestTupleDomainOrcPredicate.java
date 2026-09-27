@@ -13,7 +13,9 @@
  */
 package io.trino.orc;
 
+import com.google.common.collect.ImmutableList;
 import io.airlift.slice.Slice;
+import io.trino.orc.metadata.ColumnMetadata;
 import io.trino.orc.metadata.statistics.BinaryStatistics;
 import io.trino.orc.metadata.statistics.BooleanStatistics;
 import io.trino.orc.metadata.statistics.ColumnStatistics;
@@ -23,6 +25,7 @@ import io.trino.orc.metadata.statistics.DoubleStatistics;
 import io.trino.orc.metadata.statistics.IntegerStatistics;
 import io.trino.orc.metadata.statistics.StringStatistics;
 import io.trino.orc.metadata.statistics.TimestampStatistics;
+import io.trino.orc.metadata.statistics.Utf8BloomFilterBuilder;
 import io.trino.spi.predicate.Range;
 import io.trino.spi.predicate.ValueSet;
 import io.trino.spi.type.Decimals;
@@ -36,6 +39,7 @@ import java.math.BigDecimal;
 
 import static io.airlift.slice.Slices.utf8Slice;
 import static io.trino.orc.TupleDomainOrcPredicate.getDomain;
+import static io.trino.orc.metadata.OrcColumnId.ROOT_COLUMN;
 import static io.trino.orc.metadata.statistics.ShortDecimalStatisticsBuilder.SHORT_DECIMAL_VALUE_BYTES;
 import static io.trino.spi.predicate.Domain.all;
 import static io.trino.spi.predicate.Domain.create;
@@ -63,6 +67,7 @@ import static io.trino.spi.type.TimestampWithTimeZoneType.TIMESTAMP_TZ_MILLIS;
 import static io.trino.spi.type.TimestampWithTimeZoneType.TIMESTAMP_TZ_NANOS;
 import static io.trino.spi.type.VarbinaryType.VARBINARY;
 import static io.trino.spi.type.VarcharType.VARCHAR;
+import static io.trino.spi.type.VarcharType.createVarcharType;
 import static java.lang.Float.floatToRawIntBits;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -241,6 +246,33 @@ public class TestTupleDomainOrcPredicate
         assertThat(getDomain(CHAR, 10, stringColumnStats(5L, "apple", null))).isEqualTo(all(CHAR));
 
         assertThat(getDomain(CHAR, 10, stringColumnStats(10L, "\0 ", " "))).isEqualTo(notNull(CHAR));
+    }
+
+    @Test
+    public void testBoundedVarchar()
+    {
+        Type varchar3 = createVarcharType(3);
+        // the stored "apple" is read as "app"
+        TupleDomainOrcPredicate predicate = TupleDomainOrcPredicate.builder()
+                .setBloomFiltersEnabled(true)
+                .addColumn(ROOT_COLUMN, singleValue(varchar3, utf8Slice("app")))
+                .build();
+        ColumnStatistics statistics = new ColumnStatistics(
+                10L,
+                5L,
+                null,
+                null,
+                null,
+                null,
+                new StringStatistics(utf8Slice("apple"), utf8Slice("apple"), 50L),
+                null,
+                null,
+                null,
+                null,
+                new Utf8BloomFilterBuilder(10, 0.01).addString(utf8Slice("apple")).buildBloomFilter());
+        assertThat(predicate.matches(10L, new ColumnMetadata<>(ImmutableList.of(statistics)))).isTrue();
+
+        assertThat(getDomain(varchar3, 10, stringColumnStats(10L, "apple", "taco"))).isEqualTo(create(ValueSet.ofRanges(range(varchar3, utf8Slice("app"), true, utf8Slice("tac"), true)), false));
     }
 
     private static ColumnStatistics stringColumnStats(Long numberOfValues, String minimum, String maximum)

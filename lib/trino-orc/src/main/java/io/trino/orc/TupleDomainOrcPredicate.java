@@ -63,6 +63,7 @@ import static io.trino.spi.type.TimestampWithTimeZoneType.TIMESTAMP_TZ_MILLIS;
 import static io.trino.spi.type.TimestampWithTimeZoneType.TIMESTAMP_TZ_NANOS;
 import static io.trino.spi.type.Timestamps.MICROSECONDS_PER_MILLISECOND;
 import static io.trino.spi.type.TinyintType.TINYINT;
+import static io.trino.spi.type.Varchars.truncateToLength;
 import static java.lang.Float.floatToRawIntBits;
 import static java.lang.Float.intBitsToFloat;
 import static java.lang.Math.floorDiv;
@@ -166,7 +167,8 @@ public class TupleDomainOrcPredicate
             return bloomFilter.testFloat(intBitsToFloat(((Number) predicateValue).intValue()));
         }
 
-        if (sqlType instanceof VarcharType || sqlType instanceof VarbinaryType) {
+        // a bounded varchar value can be read from a longer stored value, and the bloom filter holds the stored value
+        if ((sqlType instanceof VarcharType varcharType && varcharType.isUnbounded()) || sqlType instanceof VarbinaryType) {
             return bloomFilter.testSlice(((Slice) predicateValue));
         }
 
@@ -236,8 +238,9 @@ public class TupleDomainOrcPredicate
         else if (type instanceof CharType && columnStatistics.getStringStatistics() != null) {
             return Domain.create(ValueSet.all(type), hasNullValue);
         }
-        else if (type instanceof VarcharType && columnStatistics.getStringStatistics() != null) {
-            return createDomain(type, hasNullValue, columnStatistics.getStringStatistics());
+        else if (type instanceof VarcharType varcharType && columnStatistics.getStringStatistics() != null) {
+            // the reader truncates values to the bounded length, so the stored bounds are truncated the same way
+            return createDomain(type, hasNullValue, columnStatistics.getStringStatistics(), value -> truncateToLength(value, varcharType));
         }
         else if (type instanceof DateType && columnStatistics.getDateStatistics() != null) {
             return createDomain(type, hasNullValue, columnStatistics.getDateStatistics(), value -> (long) value);
