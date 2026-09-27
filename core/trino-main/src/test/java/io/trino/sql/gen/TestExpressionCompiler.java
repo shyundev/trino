@@ -2270,6 +2270,14 @@ public class TestExpressionCompiler
                 .binding("a", "ARRAY[1, null]"))
                 .isNull(BOOLEAN);
 
+        assertThat(assertions.expression("a IN (ARRAY[1, 1], ARRAY[2, null])")
+                .binding("a", "ARRAY[1, null]"))
+                .isNull(BOOLEAN);
+
+        assertThat(assertions.expression("a IN (ARRAY[0, 0], ARRAY[0, 1], ARRAY[0, 2], ARRAY[0, 3], ARRAY[0, 4], ARRAY[0, 5], ARRAY[0, 6], ARRAY[0, 7])")
+                .binding("a", "ARRAY[null, 3]"))
+                .isNull(BOOLEAN);
+
         assertThat(assertions.expression("a IN (ROW(1))")
                 .binding("a", "ROW(1)"))
                 .hasType(BOOLEAN)
@@ -2326,6 +2334,10 @@ public class TestExpressionCompiler
         assertThat(assertions.expression("a IN (ROW(1, null), ROW(2, null), ROW(1, null))")
                 .binding("a", "ROW(1, null)"))
                 .isNull(BOOLEAN);
+
+        assertThat(assertions.expression("a IN (ROW(1, 2), ROW(3, 4))")
+                .binding("a", "ROW(5, null)"))
+                .isEqualTo(false);
 
         assertThat(assertions.expression("a IN (MAP(ARRAY[1], ARRAY[1]))")
                 .binding("a", "MAP(ARRAY[1], ARRAY[1])"))

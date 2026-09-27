@@ -26,6 +26,9 @@ import io.airlift.bytecode.control.SwitchStatement.SwitchBuilder;
 import io.airlift.bytecode.instruction.LabelNode;
 import io.trino.metadata.Metadata;
 import io.trino.metadata.ResolvedFunction;
+import io.trino.spi.type.ArrayType;
+import io.trino.spi.type.MapType;
+import io.trino.spi.type.RowType;
 import io.trino.spi.type.Type;
 import io.trino.sql.ir.Constant;
 import io.trino.sql.ir.Expression;
@@ -157,6 +160,7 @@ public class InCodeGenerator
                 switch (switchGenerationCase) {
                     case DIRECT_SWITCH, SET_CONTAINS -> constantValuesBuilder.add(object);
                     case HASH_SWITCH -> {
+                        constantValuesBuilder.add(object);
                         try {
                             int hashCode = Long.hashCode((Long) hashCodeMethodHandle.invoke(object));
                             hashBucketsBuilder.put(hashCode, testBytecode);
@@ -214,8 +218,7 @@ public class InCodeGenerator
                             defaultLabel,
                             value,
                             testValues,
-                            false,
-                            resolvedIsIndeterminate);
+                            false);
                     switchBuilder.addCase(bucket.getKey(), caseBlock);
                 }
                 switchBuilder.defaultCase(jump(defaultLabel));
@@ -256,16 +259,31 @@ public class InCodeGenerator
                 noMatch,
                 value,
                 defaultBucket.build(),
-                true,
-                resolvedIsIndeterminate)
+                true)
                 .setDescription("default");
 
         BytecodeBlock block = new BytecodeBlock()
                 .comment("IN")
                 .append(generatorContext.generate(valueExpression))
                 .append(ifWasNullPopAndGoto(scope, end, boolean.class, javaType))
-                .putVariable(value)
-                .append(switchBlock)
+                .putVariable(value);
+
+        if ((type instanceof ArrayType || type instanceof MapType || type instanceof RowType) && !constantValues.isEmpty()) {
+            // a value containing null is never equal to a constant, but it compares as null to one that matches
+            // its non-null elements, so instead of a lookup it is compared to every constant
+            CallSiteBinder binder = generatorContext.getCallSiteBinder();
+            block.append(new IfStatement()
+                    .condition(generatorContext.generateCall(resolvedIsIndeterminate, ImmutableList.of(value)))
+                    .ifTrue(new IfStatement()
+                            .condition(invokeStatic(InCodeGenerator.class, "anyEqualIsNull", boolean.class, value.cast(Object.class), loadConstant(binder, constantValues, Set.class), loadConstant(binder, equalsMethodHandle, MethodHandle.class)))
+                            .ifTrue(new BytecodeBlock()
+                                    .append(generatorContext.wasNull().set(constantTrue()))
+                                    .push(false)
+                                    .gotoLabel(end))
+                            .ifFalse(jump(defaultLabel))));
+        }
+
+        block.append(switchBlock)
                 .visitLabel(defaultLabel)
                 .append(defaultCaseBlock);
 
@@ -297,6 +315,17 @@ public class InCodeGenerator
         return value == (int) value;
     }
 
+    public static boolean anyEqualIsNull(Object value, Set<?> constants, MethodHandle equals)
+            throws Throwable
+    {
+        for (Object constant : constants) {
+            if (equals.invoke(value, constant) == null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static BytecodeBlock buildInCase(
             BytecodeGeneratorContext generatorContext,
             Scope scope,
@@ -305,8 +334,7 @@ public class InCodeGenerator
             LabelNode noMatchLabel,
             Variable value,
             Collection<BytecodeNode> testValues,
-            boolean checkForNulls,
-            ResolvedFunction isIndeterminateFunction)
+            boolean checkForNulls)
     {
         Variable caseWasNull = null; // caseWasNull is set to true the first time a null in `testValues` is encountered
         if (checkForNulls) {
@@ -325,19 +353,7 @@ public class InCodeGenerator
 
         Variable wasNull = generatorContext.wasNull();
         if (checkForNulls) {
-            // Consider following expression: "ARRAY[null] IN (ARRAY[1], ARRAY[2], ARRAY[3]) => NULL"
-            // All lookup values will go to the SET_CONTAINS, since neither of them is indeterminate.
-            // As ARRAY[null] is not among them, the code will fall through to the defaultCaseBlock.
-            // Since there is no values in the defaultCaseBlock, the defaultCaseBlock will return FALSE.
-            // That is incorrect. Doing an explicit check for indeterminate is required to correctly return NULL.
-            if (testValues.isEmpty()) {
-                elseBlock.append(new BytecodeBlock()
-                        .append(generatorContext.generateCall(isIndeterminateFunction, ImmutableList.of(value)))
-                        .putVariable(wasNull));
-            }
-            else {
-                elseBlock.append(wasNull.set(caseWasNull));
-            }
+            elseBlock.append(wasNull.set(caseWasNull));
         }
 
         elseBlock.gotoLabel(noMatchLabel);
