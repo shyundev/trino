@@ -157,6 +157,10 @@ public class TestGeoFunctions
         Block block = builder.build();
 
         assertThat("POINT (1.2 3.4)").isEqualTo(GEOMETRY.getObjectValue(block, 0));
+
+        builder = GEOMETRY.createBlockBuilder(null, 1);
+        GEOMETRY.writeSlice(builder, JtsGeometrySerde.serialize(GeoFunctions.stPoint(1.2, 3.4, 5.6)));
+        assertThat(GEOMETRY.getObjectValue(builder.build(), 0)).isEqualTo("POINT Z (1.2 3.4 5.6)");
     }
 
     @Test

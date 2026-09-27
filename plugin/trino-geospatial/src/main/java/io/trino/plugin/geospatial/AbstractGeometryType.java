@@ -39,6 +39,7 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 
 import static io.airlift.slice.Slices.wrappedBuffer;
+import static io.trino.plugin.geospatial.GeoFunctions.stAsText;
 import static io.trino.spi.function.OperatorType.EQUAL;
 import static io.trino.spi.function.OperatorType.READ_VALUE;
 import static io.trino.spi.function.OperatorType.XX_HASH_64;
@@ -115,7 +116,7 @@ public abstract class AbstractGeometryType
             return null;
         }
         try {
-            return JtsGeometrySerde.deserialize(getSlice(block, position)).toText();
+            return stAsText(JtsGeometrySerde.deserialize(getSlice(block, position))).toStringUtf8();
         }
         catch (RuntimeException e) {
             return "<invalid geometry>";
