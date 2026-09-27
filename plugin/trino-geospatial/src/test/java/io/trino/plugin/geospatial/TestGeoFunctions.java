@@ -2949,6 +2949,12 @@ public class TestGeoFunctions
                 .hasType(DOUBLE)
                 .isEqualTo(3.0);
 
+        // ST_SetSRID leaves its argument unchanged
+        assertThat(assertions.expression("transform(ARRAY[4326, 3857], srid -> ARRAY[ST_SRID(ST_SetSRID(geometry, srid)), ST_SRID(geometry)])")
+                .binding("geometry", "ST_Point(1, 2)"))
+                .hasType(new ArrayType(new ArrayType(INTEGER)))
+                .isEqualTo(ImmutableList.of(ImmutableList.of(4326, 0), ImmutableList.of(3857, 0)));
+
         // SRID propagation through unary operations
         assertThat(assertions.function("ST_SRID", "ST_Buffer(ST_SetSRID(ST_Point(1, 2), 3857), 1.0)"))
                 .hasType(INTEGER)

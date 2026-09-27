@@ -510,8 +510,9 @@ public final class GeoFunctions
     @SqlType(StandardTypes.GEOMETRY)
     public static Geometry stSetSrid(@SqlType(StandardTypes.GEOMETRY) Geometry geometry, @SqlType(INTEGER) long srid)
     {
-        geometry.setSRID(toIntExact(srid));
-        return geometry;
+        Geometry result = geometry.copy();
+        result.setSRID(toIntExact(srid));
+        return result;
     }
 
     @Description("Transforms a geometry from its source SRID to the target SRID")
