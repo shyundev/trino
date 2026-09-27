@@ -82,7 +82,8 @@ public abstract class AbstractValueDecodersTest
     private static final Object[][] LARGE_SIZE_RUNNERS = Stream.of(
                     ImmutableList.of(fullDecoder()),
                     generateRunnerForBatchSize(AbstractValueDecodersTest::batchDecode, 7, 8, 9, 31, 32, 33, 1024),
-                    generateRunnerForBatchSize(AbstractValueDecodersTest::skippedBatchDecode, 7, 8, 9, 31, 32, 33, 1024))
+                    generateRunnerForBatchSize(AbstractValueDecodersTest::skippedBatchDecode, 7, 8, 9, 31, 32, 33, 1024),
+                    ImmutableList.of(skipToBlockBoundaryDecode()))
             .flatMap(List::stream)
             .collect(toDataProvider());
 
@@ -298,6 +299,27 @@ public abstract class AbstractValueDecodersTest
             public String toString()
             {
                 return "skippedBatch(" + batchSize + ")";
+            }
+        };
+    }
+
+    private static <T> Runner<T> skipToBlockBoundaryDecode()
+    {
+        return new Runner<>()
+        {
+            @Override
+            public void run(ValueDecoder<T> decoder, T data, int size)
+            {
+                // The DELTA_BINARY_PACKED writer stores the first value in the header followed by blocks of 128 values
+                decoder.read(data, 0, 1);
+                decoder.skip(128);
+                decoder.read(data, 129, size - 129);
+            }
+
+            @Override
+            public String toString()
+            {
+                return "skipToBlockBoundary";
             }
         };
     }

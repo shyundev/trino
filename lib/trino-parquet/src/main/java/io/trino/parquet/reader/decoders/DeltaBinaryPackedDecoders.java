@@ -214,6 +214,7 @@ public final class DeltaBinaryPackedDecoders
         @SuppressWarnings("SuspiciousSystemArraycopy")
         public void readInternal(ValuesType values, int offset, int length)
         {
+            int startOffset = offset;
             // This condition will be true only for the first time and then continue to
             // return false hopefully making branch prediction efficient
             if (alreadyReadInBlock == FIRST_VALUE && length > 0) {
@@ -243,11 +244,10 @@ public final class DeltaBinaryPackedDecoders
                     length = 0;
                 }
                 else { // read full block
-                    if (offset == 0) {
-                        // Special case: The decoder is in the middle of the page but the output offset is 0. This prevents
-                        // us from leveraging output[offset-1] position to streamline the unpacking operation,
-                        // The solution is to use the temporary buffer.
-                        // This is a rare case that happens at most once every Trino page (~1MB or more)
+                    if (offset == startOffset) {
+                        // Special case: This call has not written output[offset-1], so it may not hold the previous value
+                        // (the offset is 0, or values were skipped after it was written). The solution is to use the temporary buffer.
+                        // This happens at most once per call.
                         setValue(blockValues, 0, previousValue);
                         readBlock(blockValues, 1); // Write data to temporary buffer
                         System.arraycopy(blockValues, 1, values, offset, blockSize);
