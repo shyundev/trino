@@ -15,6 +15,7 @@ package io.trino.sql.ir.optimizer;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import io.trino.spi.type.ArrayType;
 import io.trino.sql.ir.Array;
 import io.trino.sql.ir.Cast;
 import io.trino.sql.ir.Coalesce;
@@ -77,6 +78,10 @@ public class TestEvaluateIsNull
 
         assertThat(optimize(new IsNull(comparison(IDENTICAL, new Reference(BIGINT, "a"), new Reference(BIGINT, "b")))))
                 .isEqualTo(Optional.of(FALSE));
+
+        assertThat(optimize(new IsNull(comparison(EQUAL, new Reference(new ArrayType(BIGINT), "a"), new Reference(new ArrayType(BIGINT), "b")))))
+                .describedAs("arrays compare as null when an element comparison is null")
+                .isEqualTo(Optional.empty());
 
         assertThat(optimize(new IsNull(new Reference(BIGINT, "a"))))
                 .isEqualTo(Optional.empty());

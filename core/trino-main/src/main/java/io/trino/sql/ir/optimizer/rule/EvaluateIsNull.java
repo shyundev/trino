@@ -37,6 +37,7 @@ import static io.trino.sql.ir.Booleans.TRUE;
 import static io.trino.sql.ir.ComparisonOperator.IDENTICAL;
 import static io.trino.sql.ir.IrExpressions.matchComparison;
 import static io.trino.sql.ir.IrExpressions.mayBeNull;
+import static io.trino.sql.ir.IrExpressions.mayCompareAsNull;
 import static io.trino.sql.ir.IrExpressions.mayFail;
 import static io.trino.sql.ir.Logical.Operator.OR;
 import static io.trino.type.BooleanOperators.NOT_FUNCTION_NAME;
@@ -76,7 +77,7 @@ public class EvaluateIsNull
             return Optional.of(inner.value() == null ? TRUE : FALSE);
         }
 
-        if (matchComparison(value) instanceof Comparison comparison && comparison.operator() != IDENTICAL) {
+        if (matchComparison(value) instanceof Comparison comparison && comparison.operator() != IDENTICAL && !mayCompareAsNull(comparison.left().type())) {
             return Optional.of(new Logical(OR, ImmutableList.of(
                     new IsNull(comparison.left()),
                     new IsNull(comparison.right()))));

@@ -18,11 +18,13 @@ import io.trino.metadata.Metadata;
 import io.trino.metadata.ResolvedFunction;
 import io.trino.spi.function.CatalogSchemaFunctionName;
 import io.trino.spi.function.OperatorType;
+import io.trino.spi.type.ArrayType;
 import io.trino.spi.type.BigintType;
 import io.trino.spi.type.DecimalType;
 import io.trino.spi.type.DoubleType;
 import io.trino.spi.type.Int128;
 import io.trino.spi.type.IntegerType;
+import io.trino.spi.type.MapType;
 import io.trino.spi.type.NumberType;
 import io.trino.spi.type.RealType;
 import io.trino.spi.type.RowType;
@@ -436,16 +438,18 @@ public final class IrExpressions
             // These expressions may return null based on their operands
             case Call e -> switch (matchComparison(e)) {
                 case null -> mayBeNull(plannerContext, charVarcharCoercion, e.function(), e.arguments(), referencesMayBeNull);
-                // IDENTICAL is null-safe; other comparisons return null only when one of their operands is null.
+                // IDENTICAL is null-safe; other comparisons return null when one of their operands is null,
+                // or when arrays, maps or rows are compared and a comparison of their elements is null.
                 case Comparison.Identical _ -> false;
-                case Comparison comparison -> mayBeNull(plannerContext, charVarcharCoercion, comparison.left(), referencesMayBeNull) ||
+                case Comparison comparison -> mayCompareAsNull(comparison.left().type()) ||
+                        mayBeNull(plannerContext, charVarcharCoercion, comparison.left(), referencesMayBeNull) ||
                         mayBeNull(plannerContext, charVarcharCoercion, comparison.right(), referencesMayBeNull);
             };
             case Case e -> e.whenClauses().stream().anyMatch(clause -> mayBeNull(plannerContext, charVarcharCoercion, clause.result(), referencesMayBeNull)) ||
                     mayBeNull(plannerContext, charVarcharCoercion, e.defaultValue(), referencesMayBeNull);
             case Cast e -> mayBeNull(plannerContext, charVarcharCoercion, e, referencesMayBeNull);
             case Coalesce e -> e.operands().stream().allMatch(operand -> mayBeNull(plannerContext, charVarcharCoercion, operand, referencesMayBeNull));
-            case In e -> mayBeNull(plannerContext, charVarcharCoercion, e.value(), referencesMayBeNull) || e.valueList().stream().anyMatch(value -> mayBeNull(plannerContext, charVarcharCoercion, value, referencesMayBeNull));
+            case In e -> mayCompareAsNull(e.value().type()) || mayBeNull(plannerContext, charVarcharCoercion, e.value(), referencesMayBeNull) || e.valueList().stream().anyMatch(value -> mayBeNull(plannerContext, charVarcharCoercion, value, referencesMayBeNull));
             case Let e -> mayBeNull(plannerContext, charVarcharCoercion, e.body(), referencesMayBeNull || mayBeNull(plannerContext, charVarcharCoercion, e.value(), referencesMayBeNull));
             case Logical e -> e.terms().stream().anyMatch(term -> mayBeNull(plannerContext, charVarcharCoercion, term, referencesMayBeNull));
             case Match e -> e.clauses().stream().anyMatch(clause -> mayBeNull(plannerContext, charVarcharCoercion, clause.result(), referencesMayBeNull)) ||
@@ -481,6 +485,14 @@ public final class IrExpressions
         }
 
         return false;
+    }
+
+    /**
+     * Returns true if comparing non-null values of the type may return null, as for arrays, maps and rows with null elements.
+     */
+    public static boolean mayCompareAsNull(Type type)
+    {
+        return type instanceof ArrayType || type instanceof MapType || type instanceof RowType;
     }
 
     public static boolean mayFail(PlannerContext plannerContext, CharVarcharCoercion charVarcharCoercion, Expression expression)

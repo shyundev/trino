@@ -17,6 +17,7 @@ import com.google.common.collect.ImmutableList;
 import io.trino.metadata.Metadata;
 import io.trino.metadata.ResolvedFunction;
 import io.trino.metadata.TestingFunctionResolution;
+import io.trino.spi.type.ArrayType;
 import io.trino.sql.ir.IrExpressions.Between;
 import io.trino.sql.ir.IrExpressions.Comparison;
 import io.trino.sql.ir.IrExpressions.NullIf;
@@ -126,6 +127,8 @@ public class TestIrExpressions
         assertThat(mayReturnNullOnNonNullInput(PLANNER_CONTEXT, CHAR_VARCHAR_COERCION, new Coalesce(new Reference(BIGINT, "x"), new Constant(BIGINT, 1L)))).isFalse();
         assertThat(mayReturnNullOnNonNullInput(PLANNER_CONTEXT, CHAR_VARCHAR_COERCION, nullIf(emptySymbolAllocator(), new Reference(BIGINT, "x"), new Constant(BIGINT, 1L)))).isTrue();
         assertThat(mayReturnNullOnNonNullInput(PLANNER_CONTEXT, CHAR_VARCHAR_COERCION, new Cast(new Constant(JSON, utf8Slice("null")), BIGINT))).isTrue();
+        assertThat(mayReturnNullOnNonNullInput(PLANNER_CONTEXT, CHAR_VARCHAR_COERCION, comparison(EQUAL, new Reference(new ArrayType(BIGINT), "x"), new Reference(new ArrayType(BIGINT), "y")))).isTrue();
+        assertThat(mayReturnNullOnNonNullInput(PLANNER_CONTEXT, CHAR_VARCHAR_COERCION, new In(new Reference(new ArrayType(BIGINT), "x"), ImmutableList.of(new Reference(new ArrayType(BIGINT), "y"))))).isTrue();
     }
 
     @Test

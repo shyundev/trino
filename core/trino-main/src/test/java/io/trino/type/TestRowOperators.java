@@ -1059,6 +1059,13 @@ public class TestRowOperators
                 .isNull(BOOLEAN);
         assertThat(assertions.operator(EQUAL, rowConcrete, rowConcreteOther))
                 .neverFails();
+        assertThat(assertions.expression("(a = b) IS NULL")
+                .binding("a", rowWithNull)
+                .binding("b", rowConcrete))
+                .isEqualTo(true);
+        assertThat(assertions.expression("(row(a, CAST(NULL AS INTEGER)) = row(1, 2)) IS NULL")
+                .binding("a", "1"))
+                .isEqualTo(true);
 
         // IDENTICAL — NULL-aware (NULL ≡ NULL is TRUE)
         assertThat(assertions.expression("a IS NOT DISTINCT FROM b")
