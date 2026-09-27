@@ -287,6 +287,8 @@ import io.trino.sql.planner.rowpattern.MatchNumberValuePointer;
 import io.trino.sql.planner.rowpattern.ScalarValuePointer;
 import io.trino.sql.planner.rowpattern.ir.IrLabel;
 import io.trino.type.BlockTypeOperators;
+import org.locationtech.jts.operation.relateng.RelateNG;
+import org.locationtech.jts.operation.relateng.RelatePredicate;
 import org.objectweb.asm.MethodTooLargeException;
 
 import java.util.AbstractMap.SimpleEntry;
@@ -2669,18 +2671,18 @@ public class LocalExecutionPlanner
             CatalogSchemaFunctionName functionName = call.function().name();
             if (functionName.equals(builtinFunctionName(ST_CONTAINS))) {
                 if (probeFirst) {
-                    return (buildGeometry, probeGeometry, _) -> probeGeometry.contains(buildGeometry);
+                    return (buildGeometry, probeGeometry, _) -> RelateNG.relate(probeGeometry, buildGeometry, RelatePredicate.contains());
                 }
-                return (buildGeometry, probeGeometry, _) -> buildGeometry.contains(probeGeometry);
+                return (buildGeometry, probeGeometry, _) -> RelateNG.relate(buildGeometry, probeGeometry, RelatePredicate.contains());
             }
             if (functionName.equals(builtinFunctionName(ST_WITHIN))) {
                 if (probeFirst) {
-                    return (buildGeometry, probeGeometry, _) -> probeGeometry.within(buildGeometry);
+                    return (buildGeometry, probeGeometry, _) -> RelateNG.relate(probeGeometry, buildGeometry, RelatePredicate.within());
                 }
-                return (buildGeometry, probeGeometry, _) -> buildGeometry.within(probeGeometry);
+                return (buildGeometry, probeGeometry, _) -> RelateNG.relate(buildGeometry, probeGeometry, RelatePredicate.within());
             }
             if (functionName.equals(builtinFunctionName(ST_INTERSECTS))) {
-                return (buildGeometry, probeGeometry, _) -> buildGeometry.intersects(probeGeometry);
+                return (buildGeometry, probeGeometry, _) -> RelateNG.relate(buildGeometry, probeGeometry, RelatePredicate.intersects());
             }
             if (functionName.equals(builtinFunctionName(ST_DISTANCE))) {
                 if (comparisonOperator.orElseThrow() == LESS_THAN) {

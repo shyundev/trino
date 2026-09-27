@@ -278,6 +278,22 @@ public class TestSpatialJoins
     }
 
     @Test
+    public void testBroadcastSpatialJoinGeometryCollection()
+    {
+        // Overlapping polygons, and a line inside a polygon
+        String collections = "VALUES " +
+                "('GEOMETRYCOLLECTION (POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0)), POLYGON ((2 2, 5 2, 5 5, 2 5, 2 2)))', 'a'), " +
+                "('GEOMETRYCOLLECTION (POLYGON ((0 0, 4 0, 4 4, 0 4, 0 0)), LINESTRING (1 1, 3 3))', 'b')";
+        String points = "VALUES (1.0, 1.0, 'x'), (2.5, 2.5, 'y'), (4.5, 4.5, 'z')";
+
+        assertQuery(
+                "SELECT c.name, p.name " +
+                        "FROM (" + points + ") AS p (x, y, name) JOIN (" + collections + ") AS c (wkt, name) " +
+                        "ON ST_Contains(ST_GeometryFromText(c.wkt), ST_Point(p.x, p.y))",
+                "VALUES ('a', 'x'), ('a', 'y'), ('a', 'z'), ('b', 'x'), ('b', 'y')");
+    }
+
+    @Test
     public void testBroadcastDistanceQuery()
     {
         testDistanceQuery(getSession());
